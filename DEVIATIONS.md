@@ -66,7 +66,16 @@ order by pg_total_relation_size(relid) desc;
   `src/config.js`는 산출물이므로 커밋에 포함
 - **사유**: 저장소는 public이므로 산출물 트리에 명시된 파일만 공개하는 것이 보수적
 
-## 7. 그 외
+## 7. 설치 환경 기록 (2026-08-11, 사용자 승인 하에 진행)
+
+- Supabase 무료 계정의 활성 프로젝트 한도(2개) 때문에 신규 생성이 거부됨
+- 사용자 선택에 따라 `kids-schedule-push` 프로젝트를 **일시정지**(데이터 보존, 언제든 재개 가능)하고
+  수집기 전용 프로젝트 **`seoul-citydata`** (ref: `mqkgocpipaftnprcnsjr`, 서울 리전 ap-northeast-2) 생성
+- `sql/001_init.sql`과 동일한 스키마를 마이그레이션 `init_collector_tables`로 적용 완료 (테이블 4개, RLS 활성 확인)
+- GitHub 저장소: https://github.com/sihyoung0624/seoul-citydata-collector (public)
+- GitHub Secrets: `SUPABASE_URL` 등록 완료. `SEOUL_API_KEY`, `SUPABASE_SERVICE_KEY`는 사용자만 아는 값이라 미등록
+
+## 8. 그 외
 
 - 121곳 목록은 제공된 `config.js`를 **수정 없이 그대로** `src/config.js`로 사용함 (지시서·사용자 지시 준수)
 - 지시서 부록 A 샘플로 파싱 로직 오프라인 검증 28건 전체 통과 (정수 변환, KST 시각, 분 00~09 규칙, base_time 복사, 방어 규칙)
