@@ -1,0 +1,49 @@
+# 서울 실시간 도시데이터 수집 스케줄
+#
+# cron 2개 (모두 UTC 기준 — 한국 시각과 무관하게 매 10분/매 정시 실행):
+# - */10 * * * * : 인구 API 121곳 (COLLECT_MODE=ppltn)
+# - 0 * * * *    : 통합 API raw 5곳 (COLLECT_MODE=citydata)
+#   정시(분=00)에는 두 스케줄이 각각 별도 실행으로 돌아간다 (중복 수집 아님).
+#
+# 주의: GitHub Actions cron은 부하에 따라 수 분 지연되거나 건너뛸 수 있다.
+#       이 용도에서 지연은 문제없으나 결측 가능성은 README 참조.
+
+name: collect
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '수집 대상 (both = 인구 + 통합)'
+        type: choice
+        options:
+          - both
+          - ppltn
+          - citydata
+        default: both
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12   # 수집기 자체 제한(8분) + 여유
+    steps:
+      - name: 코드 내려받기
+        uses: actions/checkout@v4
+
+      - name: Node.js 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+        # 외부 의존성이 없으므로 npm install 단계 없음
+
+      - name: 수집 실행
+        run: node src/index.js
+        env:
+          SEOUL_API_KEY: ${{ secrets.SEOUL_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # 수동 실행이면 선택한 모드, 스케줄이면 cron 문자열로 모드 결정
+          COLLECT_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '0 * * * *' && 'citydata' || 'ppltn') }}

@@ -1,0 +1,28 @@
+# 스케줄 워크플로 자동 비활성화 방지
+#
+# GitHub은 저장소에 60일간 커밋이 없으면 스케줄 워크플로를 자동으로 끈다.
+# 이 워크플로가 월 1회 빈 커밋을 만들어 저장소 활동을 유지한다.
+
+name: keepalive
+
+on:
+  schedule:
+    - cron: '0 3 1 * *'   # 매월 1일 03:00 UTC (한국시간 12:00)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 내려받기
+        uses: actions/checkout@v4
+
+      - name: 빈 커밋으로 활동 유지
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "keepalive: 스케줄 워크플로 자동 비활성화 방지 (월 1회)"
+          git push

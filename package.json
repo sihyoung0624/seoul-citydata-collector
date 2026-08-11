@@ -1,0 +1,13 @@
+{
+  "name": "seoul-realtime-citydata-collector",
+  "version": "1.0.0",
+  "description": "서울 실시간 도시데이터 수집기 — GitHub Actions + Supabase 적재 전용",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "collect": "node src/index.js"
+  }
+}
