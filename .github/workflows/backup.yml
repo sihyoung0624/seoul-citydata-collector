@@ -1,0 +1,58 @@
+# 주간 백업 + 30일 경과 데이터 정리
+#
+# 매주 월요일 01:00 UTC (한국시간 10:00) 실행. 수동 실행도 가능.
+#
+# 순서가 안전장치다:
+#   1) export  — 완료된 날짜를 backup/<테이블>/<날짜>.ndjson.gz 로 내보냄
+#   2) 커밋·푸시 — 백업 파일을 저장소에 영구 보관
+#   3) cleanup — 푸시가 성공했을 때만 실행. 30일 지난 raw·log 행을 DB에서 삭제
+#      (스크립트가 백업 파일 존재를 한 번 더 확인한 뒤에 삭제한다)
+# 핵심 데이터(ppltn_snapshot, ppltn_forecast)는 백업만 하고 삭제하지 않는다.
+
+name: backup
+
+on:
+  schedule:
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 코드 내려받기
+        uses: actions/checkout@v4
+
+      - name: Node.js 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 백업 파일 생성
+        run: node src/backup.js export
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: 백업 커밋·푸시
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backup/
+          if git diff --cached --quiet; then
+            echo "새 백업 파일 없음 — 커밋 생략"
+          else
+            git commit -m "backup: $(date -u +%F) 주간 자동 백업"
+            git pull --rebase origin main
+            git push
+          fi
+
+      - name: 30일 지난 raw·log 정리 (백업 확인 후)
+        run: node src/backup.js cleanup
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
