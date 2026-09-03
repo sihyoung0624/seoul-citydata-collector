@@ -4,8 +4,6 @@
 // - 비율은 numeric으로 변환
 // - 시각은 KST(Asia/Seoul, +09:00) 기준 timestamptz 문자열로 변환
 
-import { CONFIG } from './config.js';
-
 /** "24000" → 24000. 변환 불가하면 null (오류로 중단하지 않는다) */
 export function toInt(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -96,9 +94,16 @@ export function parseForecasts(p) {
     .filter((row) => row.base_time !== null && row.fcst_time !== null);
 }
 
-/** ppltn_time의 분이 예측 저장 구간(00~09)인지 판정 */
+/**
+ * 예측 저장 여부 판정.
+ *
+ * [2026-09-03 변경] 원래는 ppltn_time의 분이 00~09일 때만 저장했다(용량 절약 목적,
+ * 10분 간격 실행이 전제). GitHub 스케줄 지연으로 실행 시각이 불규칙해지면서 이 조건이
+ * 예측 확보를 하루 1~2건으로 붕괴시켜, 사용자 승인 하에 매 실행 저장으로 완화했다.
+ * 중복은 DB의 UNIQUE(area_cd, base_time, fcst_time) + ON CONFLICT DO NOTHING이 걸러낸다.
+ * base_time이 정시에 정렬되지 않으므로(예 09:35) 분석 시 시각 반올림이 필요하다.
+ * 상세 경위: DEVIATIONS.md 참조.
+ */
 export function shouldSaveForecast(ppltnTimeRaw) {
-  const minute = extractMinute(ppltnTimeRaw);
-  if (minute === null) return false;
-  return minute <= CONFIG.FORECAST_SAVE_MINUTE_MAX;
+  return kstToIso(ppltnTimeRaw) !== null; // 시각이 유효하면 항상 저장
 }

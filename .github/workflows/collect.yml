@@ -1,9 +1,9 @@
 # 서울 실시간 도시데이터 수집 스케줄
 #
-# cron 2개 (모두 UTC 기준 — 한국 시각과 무관하게 매 10분/매 정시 실행):
-# - */10 * * * * : 인구 API 121곳 (COLLECT_MODE=ppltn)
-# - 0 * * * *    : 통합 API raw 5곳 (COLLECT_MODE=citydata)
-#   정시(분=00)에는 두 스케줄이 각각 별도 실행으로 돌아간다 (중복 수집 아님).
+# cron 2개 (모두 UTC 기준):
+# - 3-53/10 * * * * : 인구 API 121곳, 10분 간격 (COLLECT_MODE=ppltn)
+# - 7 * * * *       : 통합 API raw 5곳, 60분 간격 (COLLECT_MODE=citydata)
+#   두 스케줄은 각각 별도 실행으로 돌아간다 (중복 수집 아님).
 #
 # 주의: GitHub Actions cron은 부하에 따라 수 분 지연되거나 건너뛸 수 있다.
 #       이 용도에서 지연은 문제없으나 결측 가능성은 README 참조.
@@ -12,8 +12,9 @@ name: collect
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
-    - cron: '0 * * * *'
+    # 정각(분 00)은 전 세계 GitHub cron이 몰려 지연이 가장 심하므로 3분 오프셋으로 회피 (2026-09-03)
+    - cron: '3-53/10 * * * *'
+    - cron: '7 * * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -46,4 +47,4 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           # 수동 실행이면 선택한 모드, 스케줄이면 cron 문자열로 모드 결정
-          COLLECT_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '0 * * * *' && 'citydata' || 'ppltn') }}
+          COLLECT_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '7 * * * *' && 'citydata' || 'ppltn') }}
