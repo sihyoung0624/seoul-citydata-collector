@@ -5,9 +5,9 @@
 # 순서가 안전장치다:
 #   1) export  — 완료된 날짜를 backup/<테이블>/<날짜>.ndjson.gz 로 내보냄
 #   2) 커밋·푸시 — 백업 파일을 저장소에 영구 보관
-#   3) cleanup — 푸시가 성공했을 때만 실행. 30일 지난 raw·log 행을 DB에서 삭제
-#      (스크립트가 백업 파일 존재를 한 번 더 확인한 뒤에 삭제한다)
-# 핵심 데이터(ppltn_snapshot, ppltn_forecast)는 백업만 하고 삭제하지 않는다.
+#   3) cleanup — 푸시가 성공했을 때만 실행. 보존기간 지난 행을 DB에서 삭제
+#      (raw·log 30일, 핵심 snapshot·forecast 90일 — 2026-11-20 사용자 승인)
+#      스크립트가 백업 파일 존재를 한 번 더 확인한 뒤에만 삭제한다.
 
 name: backup
 
@@ -51,7 +51,7 @@ jobs:
             git push
           fi
 
-      - name: 30일 지난 raw·log 정리 (백업 확인 후)
+      - name: 보존기간 지난 데이터 정리 (백업 확인 후)
         run: node src/backup.js cleanup
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

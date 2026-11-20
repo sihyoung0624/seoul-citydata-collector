@@ -10,7 +10,12 @@
 //   export → git 커밋·푸시 성공 → cleanup 순서로만 실행된다.
 //   푸시가 실패하면 cleanup은 실행되지 않으므로 백업 없는 삭제는 일어나지 않는다.
 //
-// 핵심 데이터(ppltn_snapshot, ppltn_forecast)는 백업만 하고 삭제하지 않는다.
+// 보존 정책 (2026-11-20 사용자 승인으로 확정):
+//   - citydata_raw, collection_log: 30일 보관 후 삭제
+//   - ppltn_snapshot, ppltn_forecast(핵심): 90일 보관 후 삭제
+//   어느 쪽이든 삭제 전 주간 백업(backup/ 폴더)에 영구 보존되므로 데이터 손실은 없다.
+//   (당초 "핵심 테이블은 삭제하지 않는다"였으나, 무료 500MB 내 무기한 운영을 위해
+//    동일한 '백업 확인 후 삭제' 구조로 확장 — 경위는 DEVIATIONS.md 참조)
 
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
@@ -27,6 +32,8 @@ const TABLES = [
 const RETENTION_DAYS = {
   citydata_raw: 30,
   collection_log: 30,
+  ppltn_snapshot: 90,   // 2026-11-20 추가 (사용자 승인)
+  ppltn_forecast: 90,   // 2026-11-20 추가 (사용자 승인)
 };
 
 const PAGE_SIZE = 1000;
@@ -139,7 +146,7 @@ async function runCleanup() {
 
   for (const { name, timeCol } of TABLES) {
     const retention = RETENTION_DAYS[name];
-    if (!retention) continue; // 핵심 테이블은 삭제하지 않음
+    if (!retention) continue; // 보존기간 미지정 테이블은 삭제하지 않음
 
     const minDay = await getMinDay(name, timeCol);
     if (!minDay) continue;
