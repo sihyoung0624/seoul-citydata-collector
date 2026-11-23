@@ -124,6 +124,15 @@ Supabase SQL Editor에서 실행하고 결과를 그 파일에 기록해 주세�
 백업 파일 읽는 법(개발팀용): gzip 압축을 풀면 한 줄에 한 행(JSON)인 NDJSON 형식입니다.
 예: `zcat backup/ppltn_snapshot/2026-08-12.ndjson.gz | head`
 
+## "서울 어디가?" 사이트 (2026-11-23 추가)
+
+수집 데이터를 일반인이 쓸 수 있는 형태로 제공하는 미니 서비스입니다.
+https://sihyoung0624.github.io/seoul-citydata-collector/
+
+- 매시 자동 갱신(site 워크플로), 패턴·신뢰도는 주 1회 재계산
+- 사이트는 정적 파일만 제공하며 API 키를 포함하지 않습니다
+- DB 집계는 `sql/002_site_functions.sql`의 함수 3개로 수행 (service_role 전용)
+
 ## 알아두어야 할 것
 
 - **실행 시각은 정확하지 않습니다.** GitHub Actions의 스케줄은 UTC 기준이며 부하에 따라
