@@ -93,6 +93,12 @@
   .rk-lvl { font-size: 12.5px; font-weight: 800; color: #fff; padding: 3px 9px; border-radius: 999px; flex-shrink: 0; }
   .rk-note { font-size: 12.5px; color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
   .rank-empty { color: var(--muted); font-size: 14.5px; padding: 8px 2px 10px; }
+  .rank-card.wide { grid-column: 1 / -1; }
+  .rk-tabs { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .rk-tabs button { font-size: 14px; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+    border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font-weight: 700; }
+  .rk-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .rk-src { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
   footer { font-size: 12.5px; color: var(--muted); margin-top: 28px; line-height: 1.8; }
   footer a { color: var(--accent); }
   .loading { text-align: center; color: var(--muted); padding: 40px 0; }
@@ -178,11 +184,78 @@ function rankRow(no, cd, nm, lvlNum, lvlName, note) {
     <span class="rk-note">${esc(note)}</span></button>`;
 }
 
+const LVL_NAME = ['', '여유', '보통', '약간 붐빔', '붐빔'];
+
+/** KST 기준 같은 날인지 */
+function isTodayKST(iso) {
+  const day = (t) => new Date(new Date(t).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  return day(iso) === day(Date.now());
+}
+
+/** 평소 패턴 기준: 특정 요일(1=월~7=일) 저녁(18~21시)에 붐비는 곳 TOP 5 */
+function eveningByPattern(dow) {
+  const out = [];
+  for (const a of areas) {
+    const p = patterns[a.cd]; if (!p) continue;
+    let lv = 0, mid = 0, cnt = 0;
+    for (const h of [18, 19, 20, 21]) {
+      const s = p[dow + '-' + h];
+      if (s && s.n >= 2) { lv += LVL[s.lvl] || 1; mid += Number(s.mid); cnt++; }
+    }
+    if (cnt >= 2) out.push({ cd: a.cd, nm: a.nm, lvl: lv / cnt, mid: mid / cnt });
+  }
+  out.sort((x, y) => y.lvl - x.lvl || y.mid - x.mid);
+  return out.slice(0, 5).map((r, i) =>
+    rankRow(i + 1, r.cd, r.nm, Math.round(r.lvl), LVL_NAME[Math.round(r.lvl)], `평균 ${fmt(Math.round(r.mid))}명`)).join('');
+}
+
+/** 오늘 저녁(18~21시 KST): 서울시 예측 기준 피크 TOP 5 */
+function eveningToday() {
+  const out = [];
+  for (const a of areas) {
+    const fcs = (current.forecasts[a.cd] || []).filter((f) => {
+      const h = kstParts(f.t).hour;
+      return isTodayKST(f.t) && h >= 18 && h <= 21 && new Date(f.t).getTime() > Date.now() - 3600 * 1000;
+    });
+    let peak = null;
+    for (const f of fcs) {
+      const l = LVL[f.lvl] || 1;
+      if (!peak || l > peak.l) peak = { l, name: f.lvl, mid: (f.min + f.max) / 2, hour: kstParts(f.t).hour };
+    }
+    if (peak) out.push({ cd: a.cd, nm: a.nm, peak });
+  }
+  if (!out.length) return null;
+  out.sort((x, y) => y.peak.l - x.peak.l || y.peak.mid - x.peak.mid);
+  return out.slice(0, 5).map((r, i) =>
+    rankRow(i + 1, r.cd, r.nm, r.peak.l, r.peak.name, `${r.peak.hour}시 피크`)).join('');
+}
+
+function renderEvening(tab) {
+  const body = $('eveningBody'); if (!body) return;
+  let html, src;
+  if (tab === 'today') {
+    html = eveningToday();
+    if (html) { src = '서울시 공식 예측 기준 (오늘 18~21시 피크)'; }
+    else { html = '<div class="rank-empty">오늘 저녁 시간이 지났어요. 금·토 탭을 확인해 보세요.</div>'; src = ''; }
+  } else {
+    html = eveningByPattern(tab === 'fri' ? 5 : 6)
+      || '<div class="rank-empty">표본이 더 쌓이면 제공돼요.</div>';
+    src = `최근 90일 ${tab === 'fri' ? '금' : '토'}요일 저녁(18~21시) 평소 패턴 기준`;
+  }
+  body.innerHTML = html + (src ? `<p class="rk-src">${src}</p>` : '');
+  document.querySelectorAll('#eveningTabs button').forEach((b) =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+  body.querySelectorAll('.rankrow').forEach((b) =>
+    b.addEventListener('click', () => { render(b.dataset.cd); document.querySelector('.picker').scrollIntoView({ behavior: 'smooth' }); }));
+}
+
 function renderRanks() {
   const rows = areas.map((a) => {
     const c = current.areas[a.cd];
     if (!c) return null;
-    return { cd: a.cd, nm: a.nm, lvl: LVL[c.lvl] || 1, lvlName: c.lvl, mid: (c.min + c.max) / 2, max: c.max };
+    const t = kstParts(c.ppltn_time);
+    return { cd: a.cd, nm: a.nm, lvl: LVL[c.lvl] || 1, lvlName: c.lvl,
+             mid: (c.min + c.max) / 2, max: c.max, dow: t.dow, hour: t.hour };
   }).filter(Boolean);
 
   // ① 지금 붐비는 곳: 혼잡 단계 → 인구 순
@@ -210,15 +283,38 @@ function renderRanks() {
     ? soon.slice(0, 5).map((r, i) => rankRow(i + 1, r.cd, r.nm, r.peak.l, r.peak.lvlName, `${r.peak.hour}시쯤`)).join('')
     : '<div class="rank-empty">앞으로 3시간 내 붐빌 곳이 없어요 🙂</div>';
 
+  // ③ 지금 한산한 곳: '여유'이면서 평소 같은 요일·시간보다 인구가 적은 곳
+  const quiet = rows.filter((r) => r.lvl === 1).map((r) => {
+    const slot = patterns[r.cd] && patterns[r.cd][r.dow + '-' + r.hour];
+    if (!slot || slot.n < 3 || !(slot.mid > 0)) return null;
+    return { ...r, diff: Math.round((r.mid - slot.mid) / slot.mid * 100) };
+  }).filter(Boolean).sort((x, y) => x.diff - y.diff).slice(0, 5);
+  const quietHtml = quiet.length
+    ? quiet.map((r, i) => rankRow(i + 1, r.cd, r.nm, 1, '여유',
+        r.diff <= -5 ? `평소보다 ${-r.diff}% 한산` : '평소 수준')).join('')
+    : '<div class="rank-empty">표본이 더 쌓이면 제공돼요.</div>';
+
   $('ranks').innerHTML = `
     <div class="rank-card"><p class="sect">🔴 지금 가장 붐비는 곳</p>${busyHtml}</div>
-    <div class="rank-card"><p class="sect">⏰ 곧 붐빌 것으로 예상되는 곳</p>${soonHtml}</div>`;
+    <div class="rank-card"><p class="sect">🟢 지금 한산한 곳 (나들이 추천)</p>${quietHtml}</div>
+    <div class="rank-card"><p class="sect">⏰ 곧 붐빌 것으로 예상되는 곳</p>${soonHtml}</div>
+    <div class="rank-card wide"><p class="sect">🌆 저녁에 붐빌 곳 전망</p>
+      <div class="rk-tabs" id="eveningTabs">
+        <button data-tab="today">오늘 저녁</button>
+        <button data-tab="fri">금요일 저녁</button>
+        <button data-tab="sat">토요일 저녁</button>
+      </div>
+      <div id="eveningBody"></div>
+    </div>`;
 
   $('ranks').querySelectorAll('.rankrow').forEach((b) =>
     b.addEventListener('click', () => {
       render(b.dataset.cd);
       document.querySelector('.picker').scrollIntoView({ behavior: 'smooth' });
     }));
+  document.querySelectorAll('#eveningTabs button').forEach((b) =>
+    b.addEventListener('click', () => renderEvening(b.dataset.tab)));
+  renderEvening('today');
 }
 
 function kstParts(iso) {
