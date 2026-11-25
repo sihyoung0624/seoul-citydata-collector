@@ -64,3 +64,9 @@ jobs:
       - name: 배포
         id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      # GitHub 쪽 일시 오류(아티팩트 메타데이터 전파 지연 등)에 대비한 1회 재시도
+      - name: 배포 재시도
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
