@@ -22,9 +22,7 @@ on:
         default: full
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write   # gh-pages 브랜치 푸시용
 
 concurrency:
   group: pages
@@ -34,9 +32,6 @@ jobs:
   build-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: 코드 내려받기
         uses: actions/checkout@v4
@@ -53,20 +48,16 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '41 2 * * 0' && 'full' || 'current') }}
 
-      - name: Pages 설정
-        uses: actions/configure-pages@v6
-
-      - name: 사이트 업로드
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
-
-      - name: 배포
-        id: deployment
-        uses: actions/deploy-pages@v5
-        continue-on-error: true
-
-      # GitHub 쪽 일시 오류(아티팩트 메타데이터 전파 지연 등)에 대비한 1회 재시도
-      - name: 배포 재시도
-        if: steps.deployment.outcome == 'failure'
-        uses: actions/deploy-pages@v5
+      # 2026-11-25: 아티팩트 방식(deploy-pages)이 원인 불명으로 연속 실패하여
+      # 검증된 브랜치 배포 방식으로 전환. gh-pages 브랜치는 생성물 전용(이력 없음, 강제 푸시)
+      - name: gh-pages 브랜치로 배포
+        run: |
+          cd site
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "deploy: $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
