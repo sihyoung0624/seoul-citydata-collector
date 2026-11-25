@@ -54,19 +54,19 @@ jobs:
           MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '41 2 * * 0' && 'full' || 'current') }}
 
       - name: Pages 설정
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v6
 
       - name: 사이트 업로드
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
       - name: 배포
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
         continue-on-error: true
 
       # GitHub 쪽 일시 오류(아티팩트 메타데이터 전파 지연 등)에 대비한 1회 재시도
       - name: 배포 재시도
         if: steps.deployment.outcome == 'failure'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
